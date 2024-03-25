@@ -1,0 +1,653 @@
+---
+title: "Guidelines for Better Data Visualizations"
+subtitle: "2024 Pre-Datathon Workshop"
+author: "Dr. Weijia Jia"
+date: "03/21/2024"
+output: slidy_presentation
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+
+## Better Data Visualizations
+
+Five guidelines for better data visualizations from Jon Schwabish's book called [Better Data Visualizations](https://policyviz.com/pv_books/better-data-visualizations-a-guide-for-scholars-researchers-and-wonks/).
+
+* Show the data
+* Reduce the clutter
+* Integrate the graphics and text
+* Avoid the spaghetti chart
+* Start with gray
+
+## Example: Urbana Police Incidents from 2010 - Feb 2023
+
+Data Source: Urbana's Open Data website 
+
+[Urbana Police Incidents Dataset Link](https://data.urbanaillinois.us/Police/Police-Incidents-from-1988-Feb-2023/uj4k-8xe8/about_data)
+
+Police incidents from 1988 until February 2023, when the Urbana Police began using a new computer system. Records before 1988 are incomplete - and could be data entry errors. | MAPPING NOTE! Some addresses will not appear on maps because streets no longer exist or are not recognized by the mapping databases.
+
+**In this workshop, we only use the data from 2010 to 2023.**
+
+```{r}
+library(tidyverse)
+df1 <- read_csv("Urbana Police Incidents Data (2010-2014).csv")
+df2 <- read_csv("Urbana Police Incidents Data (2015-2019).csv")
+df3 <- read_csv("Urbana Police Incidents Data (2020-2023).csv")
+
+df3$WEAPONS.CODE.1 <- as.character(df3$WEAPONS.CODE.1)
+
+### Stack three data frames
+UC <- bind_rows(df1, df2, df3)
+```
+
+
+
+## Guideline 1: Show the Data
+
+>"Your reader can only grasp your point, argument, or story if they see the data. -- Jon Schwabish"
+
+`r kableExtra::text_spec("Choose the right charts and graphs for the job", color = "#1696d2")`
+
+* Visualizing Relationships: The Impact of **Scatterplots**
+* Tracking Trends: The Impact of **Line Graphs**
+* Comparing Multicategories: The Role of **Bar Charts**
+* Exploring Data Clusters: Insights from **Histograms** and **Box Plots**
+
+  - Histograms and box plots show where your data is clustered and can compare categories.
+
+* Pie Charts: Enhancing Visualization Details
+
+  - Pie charts are powerful for adding detail to other visualizations, but aren’t as effective on their own.
+  - Bar charts are favored over pie charts.
+
+* ...
+
+## Five Important Graphs Summary
+
+::: columns
+
+:::: {.column width=30%}
+`r kableExtra::text_spec("Base R graphics", color = "#1696d2")`
+```{r, eval=FALSE}
+# scatterplot
+  plot(x, y)
+
+# linegraph
+  plot(x, y, type="l")
+  ## Add another line to the plot
+  lines(x, z)
+  
+  
+  
+  
+  
+  
+# histogram
+  hist(x)
+  
+  
+# boxplot
+  boxplot(y)
+  boxplot(y ~ x)
+  
+  
+  
+  
+  
+  
+# barplot of variable x
+  counts=table(x)
+  barplot(counts)
+```
+::::
+
+:::: {.column width=70%}
+`r kableExtra::text_spec("Graphics using ggplot", color = "#1696d2")`
+```{r, eval=FALSE}
+# scatterplot
+ggplot(data=df, mapping=aes(x=xvar, y=yvar)) +
+  geom_point()
+
+# linegraph
+ggplot(data=df, mapping=aes(x=xvar, y=yvar)) +
+  geom_line()
+
+  #linegraph with dots
+  ggplot(data=df, mapping=aes(x=xvar, y=yvar)) +
+    geom_line() +
+    geom_point()
+
+# histogram
+ggplot(data=df, mapping=aes(x=xvar)) +
+  geom_histogram()
+
+# boxplot
+  # boxplot of one variable yvar
+  ggplot(data=df, mapping=aes(y=yvar)) +
+    geom_boxplot()
+  # boxplot of the yvar vs xvar
+  ggplot(data=df, mapping=aes(x=xvar, y=yvar)) +
+    geom_boxplot()
+
+  
+# barplot of variable x
+  # If not pre-counted, use geom_bar()
+  ggplot(data=df, mapping=aes(x=xvar))+
+   geom_bar()
+  # If precounted, use geom_col()
+  ggplot(data=df_counted, mapping=aes(x=xvar,y=counts))+
+    geom_col()
+```
+::::
+
+:::
+
+`r kableExtra::text_spec("Hourly Trends in Crime Incidences", color = "#1696d2")`
+
+```{r}
+
+UC <- UC %>% 
+  mutate(Hour.occ = hour(hms(TIME.OCCURRED)),
+         WEAPON = case_when(
+           is.na(WEAPON.1.DESCRIPTION) |
+             WEAPON.1.DESCRIPTION %in% c("", "NONE", "UNARMED") ~"Non-Weapon",
+           TRUE ~ "Weapon"))
+
+UC %>% 
+  count(Hour.occ, WEAPON) %>% 
+  ggplot(aes(x=Hour.occ, y = n, color=WEAPON)) + 
+  geom_line()+
+  geom_point()+
+  labs(x="Hours of the Day",
+       y="Total Number of Crime Incidences")
+```
+
+
+## Guideline 2: Reduce the Clutter
+
+> "The use of unnecessary visual elements distracts your reader from the central idea and clutters the page."
+
+A few things to avoid:
+
+* heavy tick marks and grid lines
+* unnecessary 3d
+* excessive text
+
+
+Consider this image from Claus Wilke's [Fundamental's of Data Visualization](https://clauswilke.com/dataviz/). 
+
+```{r echo = FALSE}
+knitr::include_graphics(here::here("www", "images", "titanic-3d-1.png"))
+
+```
+
+*How many passengers are in first class? How many male passengers are in 3rd class?* Let's recreate this plot without the gratuitous 3D. 
+
+
+### `r kableExtra::text_spec("Titanic Example", color = "#1696d2")`
+
+The titanic data set
+
+```{r}
+titanic <- tribble(
+  ~Class, ~Sex, ~n,
+  "1st class", "female passengers", 144,
+  "1st class", "male passengers", 179,
+  "2nd class", "female passengers", 106,
+  "2nd class", "male passengers", 171, 
+  "3rd class", "female passengers", 216,
+  "3rd class", "male passengers", 493
+)
+
+```
+
+Recreate the 3D plot in 2D.
+
+```{r}
+ggplot(titanic, aes(x = Class, y = n, fill = Sex)) +
+  geom_col() +
+  scale_y_continuous(breaks = seq(0, 800, 100)) +
+  geom_text(aes(label = n), position = position_stack(0.5)) 
+```
+
+## Guideline 3: Integrate the Graphics and Text
+
+1. Remove legends when possible and label data directly
+2. Write an active title like a newspaper headline
+3. Add explainers
+
+`labs()` adds title, subtitle, caption, and tag to ggplot2 objects. It can also be used to overwrite x, y, and legend titles. Use NULL to remove a label entirely (not `""`).
+
+
+`r kableExtra::text_spec("Visualizing Crime Incidence Throughout the Day", color = "#1696d2")`
+
+```{r, echo=FALSE}
+library(ggtext)
+UC <- UC %>% 
+  mutate(Hour.occ = hour(hms(TIME.OCCURRED)),
+         Time_of_Day = case_when(
+           Hour.occ >0 & Hour.occ<=6 ~ "Early Morning",
+           Hour.occ>6 & Hour.occ <=12 ~ "Morning",
+           Hour.occ>12 & Hour.occ <=18 ~ "Afternoon",
+           Hour.occ>18 & Hour.occ<=24 | Hour.occ ==0 ~ "Evening"
+         ))
+
+UC$Time_of_Day <- factor(UC$Time_of_Day, levels=c("Early Morning", "Morning", "Afternoon", "Evening"))
+
+
+UC %>% 
+  count(Time_of_Day, WEAPON) %>% 
+  ggplot(aes(x=Time_of_Day, y=n,  fill=WEAPON)) + 
+  geom_col()+
+  geom_text(aes(label = n),
+            position = position_stack(0.5),
+            color = "white",
+            size=3)+
+  labs(x = NULL, 
+       y = NULL,
+       fill = NULL,
+       title = "Number of <span style = 'color:#00BFC4;'>with weapon</span> and <span style = 'color:#F8766D;'>without weapon </span>criminal incidents",
+              subtitle = "(Increased criminal activity during afternoon and evening hours)",
+       caption = "Data from Urbana's Open Data website")+
+  theme_minimal()+  
+  theme(plot.title = element_markdown(hjust = 0.5)) +
+  guides(fill = "none")
+```
+
+
+## Guideline 3 continue
+
+#### Steps for Graphing Trend of Crime Incidences Throughout the Day
+
+
+<font color = "#55b748">Step 1:</font> Deal with time and date using functions from **lubridate** package
+
+* `TIME.OCCURRED` is in the format `08:15:00`, which corresponds to hour:minute:second. Thus
+
+```{r}
+hms("08:15:00") # Transforms a character to specified number of hours, minutes, and seconds
+hour(hms("08:15:00")) #Get hours component
+```
+
+* Similarly, we can get year, month, day information using `year(mdy())`. 
+* `DATE.OCCURRED` is in the format "02/10/2010", which corresponds to month/day/year.
+
+```{r}
+mdy("02/10/2010")
+year(mdy("02/10/2010"))
+```
+
+<font color = "#55b748">Step 2:</font> Create variable `Time_of_Day` with Early Morning, Morning, Afternoon, and Evening categories.
+
+```{r, eval=FALSE}
+UC <- UC %>% 
+  mutate(Hour.occ = hour(hms(TIME.OCCURRED)),
+         Time_of_Day = case_when(
+           Hour.occ >0 & Hour.occ<=6 ~ "Early Morning",
+           Hour.occ>6 & Hour.occ <=12 ~ "Morning",
+           Hour.occ>12 & Hour.occ <=18 ~ "Afternoon",
+           Hour.occ>18 & Hour.occ<=24 | Hour.occ ==0 ~ "Evening"
+         ))
+```
+
+
+<font color = "#55b748">Step 3:</font> Specify the order of the levels for Time_of_Day.
+
+```{r, eval=FALSE}
+UC$Time_of_Day <- factor(UC$Time_of_Day, levels=c("Early Morning", "Morning", "Afternoon", "Evening"))
+```
+
+<font color = "#55b748">Step 4:</font> Draw barplot for `Time_of_Day`. Add count on the bars using `geom_text(aes(label=n))` and adjust position, color, and font size.
+
+```{r, eval=FALSE}
+UC %>% 
+  count(Time_of_Day, WEAPON) %>% 
+  ggplot(aes(x=Time_of_Day, y=n,  fill=WEAPON)) + 
+  geom_col()+
+  geom_text(aes(label = n),
+            position = position_stack(0.5),
+            color = "white",
+            size=3)
+```
+
+
+<font color = "#55b748">Step 5:</font> Add a newspaper like headline with labs(title = "").
+
+
+<font color = "#55b748">Step 6:</font> Add the sources of the data with `caption = "Data from Urbana's Open Data website"` in labs().
+
+
+<font color = "#55b748">Step 7:</font> Remove x and y labels and the legend title in labs(). Change `labs()` to the following code
+
+```{r, eval=FALSE}
+labs(x = NULL, 
+       y = NULL,
+       fill = NULL,
+       title = "Number of <span style = 'color:#00BFC4;'>with weapon</span> and <span style = 'color:#F8766D;'>without weapon </span>criminal incidents",
+              subtitle = "(Increased criminal activity during afternoon and evening hours)",
+       caption = "Data from Urbana's Open Data website")+
+  theme_minimal()+  
+  theme(plot.title = element_markdown(hjust = 0.5)) +
+  guides(fill = "none")
+```
+
+<font color = "#55b748">Step 8:</font> Install ggtext with install.packages("ggtext") and load the package with library(ggtext).
+
+
+<font color = "#55b748">Step 9:</font> Add the following code:
+
+```{r, eval=FALSE}
+theme_minimal() +  
+  theme(plot.title = element_markdown())
+```
+
+<font color = "#55b748">Step 10:</font> Add guides(fill = "none") to remove the legend.
+
+```{r}
+library(ggtext)
+UC <- UC %>% 
+  mutate(Hour.occ = hour(hms(TIME.OCCURRED)),
+         Time_of_Day = case_when(
+           Hour.occ >0 & Hour.occ<=6 ~ "Early Morning",
+           Hour.occ>6 & Hour.occ <=12 ~ "Morning",
+           Hour.occ>12 & Hour.occ <=18 ~ "Afternoon",
+           Hour.occ>18 & Hour.occ<=24 | Hour.occ ==0 ~ "Evening"
+         ))
+
+UC$Time_of_Day <- factor(UC$Time_of_Day, levels=c("Early Morning", "Morning", "Afternoon", "Evening"))
+
+
+UC %>% 
+  count(Time_of_Day, WEAPON) %>% 
+  ggplot(aes(x=Time_of_Day, y=n,  fill=WEAPON)) + 
+  geom_col()+
+  geom_text(aes(label = n),
+            position = position_stack(0.5),
+            color = "white",
+            size=3)+
+  labs(x = NULL, 
+       y = NULL,
+       fill = NULL,
+       title = "Number of <span style = 'color:#00BFC4;'>with weapon</span> and <span style = 'color:#F8766D;'>without weapon </span>criminal incidents",
+              subtitle = "(Increased criminal activity during afternoon and evening hours)",
+       caption = "Data from Urbana's Open Data website")+
+  theme_minimal()+  
+  theme(plot.title = element_markdown(hjust = 0.5)) +
+  guides(fill = "none")
+```
+
+## Guideline 4: Avoid the Spaghetti Chart
+
+>"Sometimes we face the challenge of including lots of data in a single graph but we don't need to try to pack everything into a single graph. 
+
+Faceting or using small multiples is a useful way to de-clutter a busy data visualization. We've already encountered faceting multiple times because it is so natural in ggplot2. With effective small multiples, if a reader understand how to read one small multiple then they should understand how to read all of the multiples. Two tips:
+
+1. Arrange the small multiples in a logical order
+2. Use the same layout, size, font, and color in each small multiple
+
+Graphs Comparison: Yearly trends in the top six non-traffic offenses crimes with and without using facet
+
+```{r, echo=FALSE}
+High_Crime_category<-
+  UC %>%
+  filter(!is.na(CRIME.CATEGORY.DESCRIPTION)) %>% 
+  count(CRIME.CATEGORY.DESCRIPTION) %>% 
+  arrange(desc(n)) %>% 
+  head(7) %>% 
+  pull(CRIME.CATEGORY.DESCRIPTION)
+
+p1 <- UC %>% 
+  filter(CRIME.CATEGORY.DESCRIPTION %in% High_Crime_category &
+           CRIME.CATEGORY.DESCRIPTION !="Traffic Offenses") %>% 
+  count(YEAR.OCCURRED, CRIME.CATEGORY.DESCRIPTION) %>% 
+  ggplot(aes(x=YEAR.OCCURRED, y = n, color=CRIME.CATEGORY.DESCRIPTION))+
+  geom_point() +
+  labs(title = "Without facet_wrap()")+
+  scale_x_continuous(expand = expand_scale(mult = c(0.002, 0)),
+                     breaks = c(seq(2010, 2023, 3)),
+                     limits = c(2009.5, 2023.5))
+p2 <- UC %>% 
+  filter(CRIME.CATEGORY.DESCRIPTION %in% High_Crime_category &
+           CRIME.CATEGORY.DESCRIPTION !="Traffic Offenses") %>% 
+  count(YEAR.OCCURRED, CRIME.CATEGORY.DESCRIPTION) %>% 
+  ggplot(aes(x=YEAR.OCCURRED, y = n))+
+  geom_point(show.legend = FALSE)+
+  geom_line(show.legend = FALSE)+
+  scale_x_continuous(expand = expand_scale(mult = c(0.002, 0)),
+                     breaks = c(seq(2010, 2023, 3)),
+                     limits = c(2009.5, 2023.5))+
+  facet_wrap(~CRIME.CATEGORY.DESCRIPTION)+
+  labs(title = "With facet_wrap()")
+
+library(grid)
+library(gridExtra)
+grid.arrange(p1, p2, nrow=2,
+             top=textGrob("Avoid the Spaghetti Chart by faceting or using small multiples"))
+```
+
+## Guideline 4 continue
+
+#### Steps for graphing the yearly trends in the top six non-traffic offenses crimes
+
+<font color = "#55b748">Step 1:</font> Find the top seven crimes (including traffic offenses)
+
+```{r}
+UC %>%
+  filter(!is.na(CRIME.CATEGORY.DESCRIPTION)) %>% 
+  count(CRIME.CATEGORY.DESCRIPTION) %>% 
+  arrange(desc(n)) %>% 
+  head(7) %>% 
+  pull(CRIME.CATEGORY.DESCRIPTION)
+```
+
+<font color = "#55b748">Step 2:</font> Remove Traffic Offenses group before plotting. Color the points using Crime Category.
+
+```{r}
+UC %>% 
+  filter(CRIME.CATEGORY.DESCRIPTION %in% High_Crime_category &
+           CRIME.CATEGORY.DESCRIPTION !="Traffic Offenses") %>% 
+  count(YEAR.OCCURRED, CRIME.CATEGORY.DESCRIPTION) %>% 
+  ggplot(aes(x=YEAR.OCCURRED, y = n, color=CRIME.CATEGORY.DESCRIPTION))+
+  geom_point()
+```
+
+<font color = "#55b748">Step 3:</font> Add the following code to clean up the x-axis
+
+```{r, eval=FALSE}
+scale_x_continuous(expand = expand_scale(mult = c(0.002, 0)),
+                   breaks = c(seq(2010, 2023, 3)),
+                   limits = c(2009.5, 2023.5))
+```
+
+
+<font color = "#55b748">Step 4:</font> Repeat the code and add `facet_wrap(~CRIME.CATEGORY.DESCRIPTION)`. 
+<font color = "#55b748">Step 5:</font> Use `grid.arrange()` in `gridExtra` package to arrange multiple plots on a page for comparison. 
+
+
+```{r}
+High_Crime_category <-
+  UC %>%
+  filter(!is.na(CRIME.CATEGORY.DESCRIPTION)) %>% 
+  count(CRIME.CATEGORY.DESCRIPTION) %>% 
+  arrange(desc(n)) %>% 
+  head(7) %>% 
+  pull(CRIME.CATEGORY.DESCRIPTION)
+
+p1 <- UC %>% 
+  filter(CRIME.CATEGORY.DESCRIPTION %in% High_Crime_category &
+           CRIME.CATEGORY.DESCRIPTION !="Traffic Offenses") %>% 
+  count(YEAR.OCCURRED, CRIME.CATEGORY.DESCRIPTION) %>% 
+  ggplot(aes(x=YEAR.OCCURRED, y = n, color=CRIME.CATEGORY.DESCRIPTION))+
+  geom_point() +
+  labs(title = "Without facet_wrap()")+
+  scale_x_continuous(expand = expand_scale(mult = c(0.002, 0)),
+                     breaks = c(seq(2010, 2023, 3)),
+                     limits = c(2009.5, 2023.5))
+p2 <- UC %>% 
+  filter(CRIME.CATEGORY.DESCRIPTION %in% High_Crime_category &
+           CRIME.CATEGORY.DESCRIPTION !="Traffic Offenses") %>% 
+  count(YEAR.OCCURRED, CRIME.CATEGORY.DESCRIPTION) %>% 
+  ggplot(aes(x=YEAR.OCCURRED, y = n))+
+  geom_point(show.legend = FALSE)+
+  geom_line(show.legend = FALSE)+
+  scale_x_continuous(expand = expand_scale(mult = c(0.002, 0)),
+                     breaks = c(seq(2010, 2023, 3)),
+                     limits = c(2009.5, 2023.5))+
+  facet_wrap(~CRIME.CATEGORY.DESCRIPTION)+
+  labs(title = "With facet_wrap()")
+
+library(grid)
+library(gridExtra)
+grid.arrange(p1, p2, nrow=2,
+             top=textGrob("Avoid the Spaghetti Chart by faceting or using small multiples"))
+
+```
+
+## Guideline 5: Start with Gray
+
+>"Whenever you make a graph, start with all gray data elements. By doing so, you force yourself to be purposeful and strategic in your use of color, labels, and other elements."
+
+[`library(gghighlight)`](https://cran.r-project.org/web/packages/gghighlight/vignettes/gghighlight.html) complements this idea of starting with gray.
+
+
+
+`r kableExtra::text_spec("Cumulative Crime Incidence Example", color = "#1696d2")`
+
+```{r, echo=FALSE}
+library(gghighlight)
+
+UC %>% 
+  count(CRIME.CATEGORY.DESCRIPTION, YEAR.OCCURRED) %>%
+  group_by(CRIME.CATEGORY.DESCRIPTION) %>% 
+  mutate(cumsum = cumsum(n)) %>% 
+  ggplot(aes(YEAR.OCCURRED, cumsum, color=CRIME.CATEGORY.DESCRIPTION))+
+  geom_line()+
+  scale_x_continuous(expand = expand_scale(mult = c(0.002, 0)),
+                     breaks = c(seq(2010, 2023, 1)),
+                     limits = c(2009.5, 2023.5)) +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.002)),
+                     breaks = seq(1,6,2) * 10000,
+                     limits = c(0, 60000))+
+  labs(x = "Year",
+       y = "Cumulative Crime Incidence")+
+  gghighlight(max(cumsum) > 10000)+
+  theme_minimal()
+
+
+
+```
+
+## Guideline 5 continue
+#### Steps for Graphing Calculating Cumulative Crime Incidence
+
+<font color = "#55b748">Step 1:</font> Compute the cumulative sum of each crime incidence type over the years.
+
+```{r}
+UC.cumsum <- UC %>% 
+  count(CRIME.CATEGORY.DESCRIPTION, YEAR.OCCURRED) %>%
+  group_by(CRIME.CATEGORY.DESCRIPTION) %>% 
+  mutate(cumsum = cumsum(n))
+```
+
+
+<font color = "#55b748">Step 2:</font> Create a line plot with `x = YEAR.OCCURRED`, `y = cumsum`, `group = CRIME.CATEGORY.DESCRIPTION`, and geom_line()
+
+```{r}
+UC.cumsum %>% 
+  ggplot(aes(YEAR.OCCURRED, cumsum, group =CRIME.CATEGORY.DESCRIPTION))+
+  geom_line()
+```
+
+
+**Note:** If we simply create a line graph with `color = CRIME.CATEGORY.DESCRIPTION`, then
+
+```{r}
+UC.cumsum %>% 
+  ggplot(aes(YEAR.OCCURRED, cumsum, color =CRIME.CATEGORY.DESCRIPTION))+
+  geom_line(show.legend = FALSE)
+  
+```
+
+<font color = "#55b748">Step 3:</font> Add the following code to clean up the x-axis and y-axis.
+
+```{r, eval=FALSE}
+scale_x_continuous(expand = expand_scale(mult = c(0.002, 0)),
+                   breaks = c(seq(2010, 2023, 1)),
+                   limits = c(2009.5, 2023.5)) +
+scale_y_continuous(expand = expand_scale(mult = c(0, 0.002)),
+                   breaks = seq(1,6,2) * 10000,
+                   limits = c(0, 60000))+
+labs(x = "Year",
+     y = "Cumulative Crime Incidence")
+```
+
+
+<font color = "#55b748">Step 4:</font> Suppose we want to highlight the three crime incidence types with the highest occurrences. We can use library(gghighlight). Switch *group* to *color* in your existing code and add `gghighlight(max(cumsum) > 10000)`.
+
+<font color = "#55b748">Step 5:</font> Above the data viz, add `theme_minimal()`. Or run `theme_set(theme_minimal())`, which changes the default theme for the entire R session.
+
+
+```{r}
+library(gghighlight)
+
+UC %>% 
+  count(CRIME.CATEGORY.DESCRIPTION, YEAR.OCCURRED) %>%
+  group_by(CRIME.CATEGORY.DESCRIPTION) %>% 
+  mutate(cumsum = cumsum(n)) %>% 
+  ggplot(aes(YEAR.OCCURRED, cumsum, color=CRIME.CATEGORY.DESCRIPTION))+
+  geom_line()+
+  scale_x_continuous(expand = expand_scale(mult = c(0.002, 0)),
+                     breaks = c(seq(2010, 2023, 1)),
+                     limits = c(2009.5, 2023.5)) +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.002)),
+                     breaks = seq(1,6,2) * 10000,
+                     limits = c(0, 60000))+
+  labs(x = "Year",
+       y = "Cumulative Crime Incidence")+
+  gghighlight(max(cumsum) > 10000)+
+  theme_minimal()
+```
+
+## Resources
+
+### Major Recources
+
+* <https://github.com/awunderground/sdss2021_data-viz-training>
+* By Aaron Williams, Senior Data Scientist at the Urban Institute
+
+
+### Rstudio Cheatsheets
+
+* <https://www.rstudio.com/resources/cheatsheets/>
+
+### More tutorial videos from freeCodeCamp.org on YouTube
+
+* <https://www.youtube.com/watch?v=_V8eKsto3Ug&t=4s>
+
+
+### Reference Books
+
+#### Free online books with excellent material
+* R for Data Science: https://r4ds.had.co.nz/index.html
+* Hands-on Programming with R: https://rstudio-education.github.io/hopr/
+* R Graphics Cookbook: https://r-graphics.org/
+* Fundamentals of Data Visualization: https://clauswilke.com/dataviz/
+
+#### Other books
+* Better Data Visualizations: A Guide for Scholars, Researchers, and Wonks, by Jon Schwabish 
+* Statistical Inference via Data Science: A Modern Dive into R and the Tidyverse, by Chester Ismay, Albert Y. Kim
+
+
+## Thank you! And... Questions?
+
+Contact Information:
+
+* Dr. Weijia Jia
+  + Clinical Assistant Professor
+  + Email: wjia@illinois.edu
+  + Department of Statistics, UIUC

@@ -1,0 +1,214 @@
+---
+title: "Some Commonly Employed Practices in Data Wrangling"
+subtitle: "Urbana Crime Incidents Data"
+author: "Dr. Weijia Jia"
+date: "2024-03-21"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+## Example: Urbana Police Incidents from 2010 - Feb 2023
+
+Data Source: Urbana's Open Data website 
+
+[Urbana Police Incidents Dataset Link](https://data.urbanaillinois.us/Police/Police-Incidents-from-1988-Feb-2023/uj4k-8xe8/about_data)
+
+Police incidents from 1988 until February 2023, when the Urbana Police began using a new computer system. Records before 1988 are incomplete - and could be data entry errors. | MAPPING NOTE! Some addresses will not appear on maps because streets no longer exist or are not recognized by the mapping databases.
+
+In this workshop, we only use the data from 2010 to 2023.
+
+### Read in the csv datasets
+
+```{r}
+library(tidyverse)
+df1 <- read_csv("Urbana Police Incidents Data (2010-2014).csv")
+df2 <- read_csv("Urbana Police Incidents Data (2015-2019).csv")
+df3 <- read_csv("Urbana Police Incidents Data (2020-2023).csv")
+
+
+```
+
+
+
+## Merge the data vertically or horizontally
+
+### Stack the datasets -- merge vertically
+```{r}
+### Address the discrepancy in data types for WEAPONS.CODE.1 between df1 and df3.
+df3$WEAPONS.CODE.1 <- as.character(df3$WEAPONS.CODE.1)
+
+### Stack three data frames
+UC <- bind_rows(df1, df2, df3)
+```
+
+
+### Merge the dataset horizontally `bind_cols()`
+
+## Slice some data for preliminary research
+
+Preliminary exploration -- extract a sample of the data for easier management.
+
+```{r}
+UC.sample <- UC %>% slice_sample(n = 1000) 
+```
+
+
+## How many missing values in each column?
+
+```{r}
+UC %>% 
+  summarize_all(~sum(is.na(.))) %>% 
+  print(width=Inf) ### Show all columns
+```
+
+## Distinct groups
+
+## List the distinct groups
+
+```{r}
+UC %>% 
+  distinct(CRIME.CATEGORY)
+```
+
+
+## Find the number of distinct groups
+
+```{r}
+UC %>% 
+  select(CRIME.CATEGORY) %>% 
+  n_distinct()
+```
+
+## Deal with time and date
+
+```{r}
+UC <- UC %>% 
+  mutate(Year.occ = year(mdy(DATE.OCCURRED)),
+         Month.occ = month(mdy(DATE.OCCURRED)),
+         Day.occ = day(mdy(DATE.OCCURRED)),
+         Hour.occ = hour(hms(TIME.OCCURRED)))
+
+### Check if Year.occ and YEAR.OCCURRED are identical
+identical(UC$Year.occ, UC$YEAR.OCCURRED)
+# Note that, some non-identical case are due to different data type
+
+### Discover where the difference lies
+setdiff(UC$Year.occ, UC$YEAR.OCCURRED)
+```
+
+
+## Count number in each category, sort in order
+
+```{r}
+UC %>% 
+  count(CRIME.DESCRIPTION) %>% 
+  arrange(desc(n)) %>% ## sort in descending order
+  head() ## Show the first 6 categories only
+```
+
+## Combine some categories in a variable
+
+```{r}
+UC %>% 
+  mutate(
+    YEAR_before_19 = case_when(
+      YEAR.OCCURRED <2019 ~ "Yes",
+      TRUE ~ "No"
+    )
+  ) %>% 
+  count(YEAR_before_19)
+```
+
+
+## Check if two variables are one-on-one correspondence
+
+```{r}
+
+m<- UC %>% 
+  distinct(CRIME.CATEGORY, CRIME.CATEGORY.DESCRIPTION) %>% 
+  table()
+
+all(rowSums(m)==1) && all(colSums(m)==1)
+```
+
+
+## geom_bar() vs geom_col()
+
+```{r}
+UC<- UC %>% 
+  mutate(
+    YEAR_before_19 = case_when(
+      YEAR.OCCURRED <2019 ~ "Yes",
+      TRUE ~ "No"
+    ))
+
+# geom_bar() <- pre-count not needed
+UC %>% 
+  ggplot(aes(YEAR_before_19)) + 
+  geom_bar()
+
+# geom_col() <- pre-count needed
+UC %>% 
+  count(YEAR_before_19) %>% 
+  ggplot(aes(x = YEAR_before_19, y = n))+
+  geom_col()
+```
+
+
+### color or fill, in aes() or not
+
+```{r}
+UC<- UC %>% 
+  mutate(
+    Traffic_Offenses = case_when(
+      CRIME.CATEGORY.DESCRIPTION == "Traffic Offenses" ~ "Yes",
+      TRUE ~ "No"
+    ))
+```
+
+```{r}
+### color vs fill
+
+UC %>% 
+  ggplot(aes(x=Traffic_Offenses, color=YEAR_before_19))+
+  geom_bar(position="dodge")
+
+UC %>% 
+  ggplot(aes(x=Traffic_Offenses, fill=YEAR_before_19))+
+  geom_bar(position="dodge")
+```
+
+```{r}
+### Color #13294B is UIUC navy blue, #E84A27 is UIUC orange
+UC %>% 
+  ggplot(aes(x=Traffic_Offenses, fill="#13294B"))+
+  geom_bar()
+
+### The color doesn't looks like navy blue. What's wrong?
+UC %>% 
+  ggplot(aes(x=Traffic_Offenses))+
+  geom_bar(fill="#13294B", color="#E84A27", linewidth=2)
+```
+
+
+## Seperate strings in one column and create barplot based on frequency
+
+```{r, out.width="120%"}
+UC %>% 
+  mutate(
+    CRIME.CATEGORY.DESCRIPTION1 = str_split(CRIME.CATEGORY.DESCRIPTION, "/")
+  )  %>% 
+  unnest(CRIME.CATEGORY.DESCRIPTION1) %>% 
+  count(CRIME.CATEGORY.DESCRIPTION1) %>%
+  ggplot(aes(x=reorder(CRIME.CATEGORY.DESCRIPTION1, n), y = n))+ # arrange bars in order
+  geom_col()+
+  coord_flip()+ 
+  theme(axis.text = element_text(size = 5))
+```
+
